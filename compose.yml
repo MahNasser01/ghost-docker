@@ -64,9 +64,6 @@ services:
       tinybird__stats__endpoint: ${TINYBIRD_API_URL:-https://api.tinybird.co}
     volumes:
       - ${UPLOAD_LOCATION:-./data/ghost}:/var/lib/ghost/content
-      # Named volume seeds the S3 adapter from the image on first run,
-      # even though ./data/ghost is bind-mounted over the parent path.
-      - ghost_adapters:/var/lib/ghost/content/adapters/storage
     depends_on:
       db:
         condition: service_healthy
@@ -230,7 +227,6 @@ volumes:
   tinybird_files:
   tinybird_home:
   traffic_analytics_data:
-  ghost_adapters:
 
 networks:
   ghost_network:
