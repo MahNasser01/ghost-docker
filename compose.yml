@@ -22,20 +22,41 @@ services:
 
   ghost:
     # Do not alter this without updating the Tinybird Sync container as well
-    image: ghost:${GHOST_VERSION:-6-alpine}
+    build:
+      context: .
+      dockerfile: ghost/Dockerfile
+      args:
+        GHOST_VERSION: ${GHOST_VERSION:-6-alpine}
     restart: always
     # This is required to import current config when migrating
     env_file:
       - .env
     environment:
       NODE_ENV: production
-      url: https://${DOMAIN:?DOMAIN environment variable is required}
+      url: ${GHOST_URL:?GHOST_URL environment variable is required}
       admin__url: ${ADMIN_DOMAIN:+https://${ADMIN_DOMAIN}}
+      # Database — defaults to the local db service; set DB_HOST to use external RDS
       database__client: mysql
-      database__connection__host: db
-      database__connection__user: ${DATABASE_USER:-ghost}
-      database__connection__password: ${DATABASE_PASSWORD:?DATABASE_PASSWORD environment variable is required}
-      database__connection__database: ghost
+      database__connection__host: ${DB_HOST:-db}
+      database__connection__port: ${DB_PORT:-3306}
+      database__connection__user: ${DB_USER:-ghost}
+      database__connection__password: ${DB_PASSWORD:?DB_PASSWORD environment variable is required}
+      database__connection__database: ${DB_NAME:-ghost}
+      # S3 Storage (optional — leave S3_ACCESS_KEY unset to use local disk)
+      storage__active: ${S3_ACCESS_KEY:+s3}
+      storage__s3__accessKeyId: ${S3_ACCESS_KEY:-}
+      storage__s3__secretAccessKey: ${S3_SECRET_KEY:-}
+      storage__s3__region: ${S3_REGION:-}
+      storage__s3__bucket: ${S3_BUCKET:-}
+      storage__s3__assetHost: ${S3_ASSET_HOST:-}
+      # Mail (SMTP)
+      mail__transport: SMTP
+      mail__from: ${MAIL_FROM:-}
+      mail__options__host: ${SMTP_HOST:-}
+      mail__options__port: ${SMTP_PORT:-587}
+      mail__options__auth__user: ${SMTP_USER:-}
+      mail__options__auth__pass: ${SMTP_PASS:-}
+      # Tinybird analytics
       tinybird__tracker__endpoint: https://${DOMAIN:?DOMAIN environment variable is required}/.ghost/analytics/api/v1/page_hit
       tinybird__adminToken: ${TINYBIRD_ADMIN_TOKEN:-}
       tinybird__workspaceId: ${TINYBIRD_WORKSPACE_ID:-}
@@ -43,9 +64,13 @@ services:
       tinybird__stats__endpoint: ${TINYBIRD_API_URL:-https://api.tinybird.co}
     volumes:
       - ${UPLOAD_LOCATION:-./data/ghost}:/var/lib/ghost/content
+      # Named volume seeds the S3 adapter from the image on first run,
+      # even though ./data/ghost is bind-mounted over the parent path.
+      - ghost_adapters:/var/lib/ghost/content/adapters/storage
     depends_on:
       db:
         condition: service_healthy
+        required: false
       tinybird-sync:
         condition: service_completed_successfully
         required: false
@@ -65,9 +90,9 @@ services:
       - "3306"
     environment:
       MYSQL_ROOT_PASSWORD: ${DATABASE_ROOT_PASSWORD:?DATABASE_ROOT_PASSWORD environment variable is required}
-      MYSQL_USER: ${DATABASE_USER:-ghost}
-      MYSQL_PASSWORD: ${DATABASE_PASSWORD:?DATABASE_PASSWORD environment variable is required}
-      MYSQL_DATABASE: ghost
+      MYSQL_USER: ${DB_USER:-ghost}
+      MYSQL_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD environment variable is required}
+      MYSQL_DATABASE: ${DB_NAME:-ghost}
       MYSQL_MULTIPLE_DATABASES: activitypub
     volumes:
       - ${MYSQL_DATA_LOCATION:-./data/mysql}:/var/lib/mysql
@@ -78,6 +103,7 @@ services:
       start_period: 30s
       start_interval: 10s
       retries: 120
+    profiles: [local-db]
     networks:
       - ghost_network
 
@@ -109,15 +135,16 @@ services:
     environment:
       # See https://github.com/TryGhost/ActivityPub/blob/main/docs/env-vars.md
       NODE_ENV: production
-      MYSQL_HOST: db
-      MYSQL_USER: ${DATABASE_USER:-ghost}
-      MYSQL_PASSWORD: ${DATABASE_PASSWORD:?DATABASE_PASSWORD environment variable is required}
+      MYSQL_HOST: ${DB_HOST:-db}
+      MYSQL_USER: ${DB_USER:-ghost}
+      MYSQL_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD environment variable is required}
       MYSQL_DATABASE: activitypub
       LOCAL_STORAGE_PATH: /opt/activitypub/content/images/activitypub
       LOCAL_STORAGE_HOSTING_URL: https://${DOMAIN}/content/images/activitypub
     depends_on:
       db:
         condition: service_healthy
+        required: false
       activitypub-migrate:
         condition: service_completed_successfully
     profiles: [activitypub]
@@ -187,12 +214,13 @@ services:
   activitypub-migrate:
     image: ghcr.io/tryghost/activitypub-migrations:1.1.0@sha256:b3ab20f55d66eb79090130ff91b57fe93f8a4254b446c2c7fa4507535f503662
     environment:
-      MYSQL_DB: mysql://${DATABASE_USER:-ghost}:${DATABASE_PASSWORD:?DATABASE_PASSWORD environment variable is required}@tcp(db:3306)/activitypub
+      MYSQL_DB: mysql://${DB_USER:-ghost}:${DB_PASSWORD:?DB_PASSWORD environment variable is required}@tcp(${DB_HOST:-db}:${DB_PORT:-3306})/activitypub
     networks:
       - ghost_network
     depends_on:
       db:
         condition: service_healthy
+        required: false
     profiles: [activitypub]
     restart: no
 
@@ -202,6 +230,7 @@ volumes:
   tinybird_files:
   tinybird_home:
   traffic_analytics_data:
+  ghost_adapters:
 
 networks:
   ghost_network:
