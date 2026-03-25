@@ -89,7 +89,7 @@ services:
     expose:
       - "3306"
     environment:
-      MYSQL_ROOT_PASSWORD: ${DATABASE_ROOT_PASSWORD:?DATABASE_ROOT_PASSWORD environment variable is required}
+      MYSQL_ROOT_PASSWORD: ${DATABASE_ROOT_PASSWORD:-}
       MYSQL_USER: ${DB_USER:-ghost}
       MYSQL_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD environment variable is required}
       MYSQL_DATABASE: ${DB_NAME:-ghost}
