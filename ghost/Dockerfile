@@ -14,6 +14,8 @@ RUN mkdir -p /tmp/s3-build \
     # Copy all dependencies (aws-sdk etc.) into the adapter's node_modules
     && cp -r /tmp/s3-build/node_modules /opt/ghost-adapters/storage/s3/ \
     && rm -rf /tmp/s3-build \
+    # Patch adapter to not send ACL header (required for buckets with ACLs disabled)
+    && sed -i '/ACL:/d' /opt/ghost-adapters/storage/s3/index.js \
     && chown -R node:node /opt/ghost-adapters
 
 COPY ghost/docker-entrypoint-custom.sh /usr/local/bin/docker-entrypoint-custom.sh

@@ -49,7 +49,6 @@ services:
       storage__s3__region: ${S3_REGION:-}
       storage__s3__bucket: ${S3_BUCKET:-}
       storage__s3__assetHost: ${S3_ASSET_HOST:-}
-      storage__s3__acl: ${S3_ACL:-}
       # Mail (SMTP)
       mail__transport: SMTP
       mail__from: ${MAIL_FROM:-}
